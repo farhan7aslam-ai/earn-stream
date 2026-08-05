@@ -1,0 +1,10 @@
+# Files excluded from Vercel deployment
+db/
+dev.log
+server.log
+tests/
+download/
+examples/
+agent-ctx/
+worklog.md
+supabase/migrations/clean_slate.sql
