@@ -10,7 +10,7 @@ import { PaymentRequired } from "@/components/auth/payment-required";
 import { UserPanel } from "@/components/user/user-panel";
 import { AdminPanel } from "@/components/admin/admin-panel";
 import type { PlatformSettings, SafeUser } from "@/lib/types";
-import { Sparkles, Heart } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 export default function Home() {
   const [booted, setBooted] = React.useState(false);
@@ -18,24 +18,13 @@ export default function Home() {
   const [settings, setSettings] = React.useState<PlatformSettings | null>(null);
 
   const bootstrap = React.useCallback(async () => {
-    // Race the bootstrap fetches against a hard timeout so the boot splash
-    // can never freeze forever (e.g. if the dev server is restarting).
-    const timeout = new Promise<{ user: null; settings: null }>((resolve) =>
-      setTimeout(() => resolve({ user: null, settings: null }), 8000)
-    );
     try {
-      const result = await Promise.race([
-        Promise.all([
-          apiFetch<{ user: SafeUser | null }>("/api/auth/me"),
-          apiFetch<{ settings: PlatformSettings }>("/api/settings"),
-        ]).then(([meRes, settingsRes]) => ({
-          user: meRes.user,
-          settings: settingsRes.settings,
-        })),
-        timeout,
+      const [meRes, settingsRes] = await Promise.all([
+        apiFetch<{ user: SafeUser | null }>("/api/auth/me"),
+        apiFetch<{ settings: PlatformSettings }>("/api/settings"),
       ]);
-      setUser(result.user);
-      if (result.settings) setSettings(result.settings);
+      setUser(meRes.user);
+      setSettings(settingsRes.settings);
     } catch {
       setUser(null);
     } finally {
@@ -50,11 +39,7 @@ export default function Home() {
   if (!booted || !settings) {
     return (
       <PageShell>
-        {booted && !settings ? (
-          <ConnectionError onRetry={() => { setBooted(false); bootstrap(); }} />
-        ) : (
-          <BootSplash />
-        )}
+        <BootSplash />
       </PageShell>
     );
   }
@@ -133,29 +118,6 @@ function BootSplash() {
         </div>
       </div>
       <p className="text-sm text-violet-100/50">Loading EarnStream…</p>
-    </div>
-  );
-}
-
-function ConnectionError({ onRetry }: { onRetry: () => void }) {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500/30 to-fuchsia-500/10 text-rose-300 ring-1 ring-white/10">
-        <Sparkles className="h-7 w-7" />
-      </div>
-      <div>
-        <p className="text-lg font-bold text-white">Connection issue</p>
-        <p className="mt-1 max-w-sm text-sm text-violet-100/55">
-          We couldn't reach the EarnStream server. It may be restarting.
-          Please wait a moment and try again.
-        </p>
-      </div>
-      <button
-        onClick={onRetry}
-        className="rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:brightness-110"
-      >
-        Retry connection
-      </button>
     </div>
   );
 }

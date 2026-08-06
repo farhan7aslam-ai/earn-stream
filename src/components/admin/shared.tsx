@@ -48,9 +48,11 @@ export function TaskTypePill({ type }: { type: TaskType }) {
 
 export function paymentStatusTone(
   status: PaymentStatus | TaskStatus
-): "amber" | "emerald" | "rose" {
+): "amber" | "emerald" | "rose" | "violet" | "neutral" {
   if (status === "pending") return "amber";
   if (status === "approved") return "emerald";
+  if (status === "paid") return "violet";
+  if (status === "cancelled") return "neutral";
   return "rose";
 }
 
@@ -65,7 +67,11 @@ export function PaymentStatusPill({
       ? "Pending"
       : status === "approved"
         ? "Approved"
-        : "Rejected";
+        : status === "paid"
+          ? "Paid"
+          : status === "cancelled"
+            ? "Cancelled"
+            : "Rejected";
   return <PremiumBadge tone={tone}>{label}</PremiumBadge>;
 }
 

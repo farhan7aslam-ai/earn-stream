@@ -30,6 +30,13 @@ export async function PATCH(req: NextRequest) {
     "phone",
     "email",
     "referred_by",
+    "avatar_url",
+    "country",
+    "timezone",
+    "language",
+    "last_login_at",
+    "last_ip",
+    "last_device",
   ];
   const NULLABLE_NUMBER = ["custom_referral_bonus_percent"];
 

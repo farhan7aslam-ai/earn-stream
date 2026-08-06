@@ -1,16 +1,29 @@
 import type {
   AdminStats,
+  Announcement,
+  AuditLog,
+  BlockedIP,
+  CmsContent,
+  DashboardAnalytics,
+  GmailCampaign,
+  GmailSubmission,
+  LoginSession,
   Notification,
   NotificationType,
+  NotificationQueueEntry,
   Payment,
   PlatformSettings,
   Referral,
   SafeUser,
   Session,
+  SystemHealth,
   TaskAttempt,
   TaskRow,
+  TaskSubmission,
   TaskType,
+  TikTokTask,
   User,
+  WalletLedgerEntry,
   WalletSummary,
 } from "./types";
 
@@ -149,6 +162,13 @@ export interface Store {
         | "referred_by"
         | "custom_referral_bonus_percent"
         | "password_hash"
+        | "avatar_url"
+        | "country"
+        | "timezone"
+        | "language"
+        | "last_login_at"
+        | "last_ip"
+        | "last_device"
       >
     >
   ): Promise<User>;
@@ -178,11 +198,215 @@ export interface Store {
   getStats(): Promise<AdminStats>;
   approveWithdrawal(payment_id: string): Promise<Payment>;
   rejectWithdrawal(payment_id: string): Promise<Payment>;
+  /** Mark an approved withdrawal as paid out (final state). */
+  markPaidWithdrawal(payment_id: string): Promise<Payment>;
+  /** Cancel a withdrawal — sets status to 'cancelled' and refunds the amount
+   *  back to the user's balance. Allowed from pending or approved states. */
+  cancelWithdrawal(payment_id: string): Promise<Payment>;
   listPayments(filter?: {
     user_id?: string;
     type?: Payment["type"];
     status?: Payment["status"];
   }): Promise<Payment[]>;
+
+  // ════════════════════════════════════════════════════════════════
+  // ENTERPRISE — TikTok Task CMS
+  // ════════════════════════════════════════════════════════════════
+  createTask(input: {
+    title: string;
+    description?: string;
+    tiktok_username?: string;
+    tiktok_video_url?: string;
+    task_type: TikTokTask["task_type"];
+    reward_per_user?: number;
+    max_participants?: number;
+    expiry_date?: string | null;
+    priority?: number;
+    instructions?: string;
+    comment_text?: string | null;
+    created_by?: string | null;
+  }): Promise<TikTokTask>;
+  listTasksCMS(filter?: {
+    status?: TikTokTask["status"];
+    limit?: number;
+    offset?: number;
+  }): Promise<TikTokTask[]>;
+  getTaskCMS(id: string): Promise<TikTokTask | null>;
+  updateTask(
+    id: string,
+    patch: Partial<Omit<TikTokTask, "id" | "created_at" | "updated_at">>
+  ): Promise<TikTokTask>;
+  deleteTask(id: string): Promise<void>;
+  submitTaskCMS(
+    user_id: string,
+    task_id: string,
+    screenshot_url: string,
+    meta?: { device?: string | null; browser?: string | null; ip_address?: string | null }
+  ): Promise<TaskSubmission>;
+  listUserTaskSubmissions(user_id: string): Promise<TaskSubmission[]>;
+  listTaskSubmissions(filter?: {
+    status?: TaskSubmission["status"];
+    task_id?: string;
+    limit?: number;
+  }): Promise<TaskSubmission[]>;
+  approveTaskSubmission(
+    submission_id: string,
+    admin_id: string
+  ): Promise<{ submission: TaskSubmission; payment: Payment }>;
+  rejectTaskSubmission(
+    submission_id: string,
+    admin_id: string,
+    reason?: string
+  ): Promise<TaskSubmission>;
+
+  // ════════════════════════════════════════════════════════════════
+  // ENTERPRISE — Gmail submissions
+  // ════════════════════════════════════════════════════════════════
+  submitGmail(input: {
+    user_id: string;
+    gmail_address: string;
+    recovery_email?: string | null;
+    recovery_phone?: string | null;
+    country?: string | null;
+    creation_date?: string | null;
+    campaign_id?: string | null;
+    screenshot_url?: string | null;
+  }): Promise<GmailSubmission>;
+  listUserGmail(user_id: string): Promise<GmailSubmission[]>;
+  listGmailSubmissions(filter?: {
+    status?: GmailSubmission["status"];
+    limit?: number;
+  }): Promise<GmailSubmission[]>;
+  approveGmail(
+    submission_id: string,
+    admin_id: string
+  ): Promise<{ submission: GmailSubmission; payment: Payment }>;
+  rejectGmail(
+    submission_id: string,
+    admin_id: string,
+    reason?: string
+  ): Promise<GmailSubmission>;
+  /** Soft-delete a gmail submission (sets deleted_at, status='cancelled'). */
+  deleteGmailSubmission(submission_id: string): Promise<void>;
+
+  // ════════════════════════════════════════════════════════════════
+  // ENTERPRISE — Gmail Campaigns
+  // ════════════════════════════════════════════════════════════════
+  createGmailCampaign(input: {
+    name: string;
+    description?: string;
+    reward?: number;
+    daily_limit?: number;
+    start_date?: string | null;
+    end_date?: string | null;
+    status?: GmailCampaign["status"];
+    rules?: string;
+    created_by?: string | null;
+  }): Promise<GmailCampaign>;
+  listGmailCampaigns(): Promise<GmailCampaign[]>;
+  listActiveGmailCampaigns(): Promise<GmailCampaign[]>;
+  updateGmailCampaign(
+    id: string,
+    patch: Partial<Omit<GmailCampaign, "id" | "created_at" | "updated_at">>
+  ): Promise<GmailCampaign>;
+  deleteGmailCampaign(id: string): Promise<void>;
+
+  // ════════════════════════════════════════════════════════════════
+  // ENTERPRISE — Audit Log
+  // ════════════════════════════════════════════════════════════════
+  logAudit(input: {
+    admin_id: string;
+    action: string;
+    entity_type: string;
+    entity_id?: string | null;
+    old_value?: unknown;
+    new_value?: unknown;
+    ip_address?: string | null;
+    user_agent?: string | null;
+  }): Promise<void>;
+  listAuditLogs(limit?: number, offset?: number): Promise<AuditLog[]>;
+
+  // ════════════════════════════════════════════════════════════════
+  // ENTERPRISE — Announcements
+  // ════════════════════════════════════════════════════════════════
+  createAnnouncement(input: {
+    title: string;
+    body?: string;
+    type?: Announcement["type"];
+    is_active?: boolean;
+    image_url?: string | null;
+    priority?: number;
+    publish_date?: string | null;
+    expiry_date?: string | null;
+    visible_to?: Announcement["visible_to"];
+    created_by?: string | null;
+  }): Promise<Announcement>;
+  listActiveAnnouncements(): Promise<Announcement[]>;
+  listAllAnnouncements(): Promise<Announcement[]>;
+  toggleAnnouncement(id: string, is_active: boolean): Promise<Announcement>;
+  deleteAnnouncement(id: string): Promise<void>;
+
+  // ════════════════════════════════════════════════════════════════
+  // ENTERPRISE — Wallet Ledger
+  // ════════════════════════════════════════════════════════════════
+  recordWalletTransaction(input: {
+    user_id: string;
+    credit?: number;
+    debit?: number;
+    reference_type?: string;
+    reference_id?: string | null;
+    description?: string;
+    admin_id?: string | null;
+  }): Promise<WalletLedgerEntry>;
+  listWalletLedger(user_id: string, limit?: number): Promise<WalletLedgerEntry[]>;
+
+  // ════════════════════════════════════════════════════════════════
+  // ENTERPRISE — Login Sessions
+  // ════════════════════════════════════════════════════════════════
+  listLoginSessions(user_id?: string): Promise<LoginSession[]>;
+  revokeSession(id: string): Promise<void>;
+
+  // ════════════════════════════════════════════════════════════════
+  // ENTERPRISE — Blocked IPs
+  // ════════════════════════════════════════════════════════════════
+  listBlockedIPs(): Promise<BlockedIP[]>;
+  blockIP(ip: string, reason: string, blocked_by: string): Promise<BlockedIP>;
+  unblockIP(id: string): Promise<void>;
+
+  // ════════════════════════════════════════════════════════════════
+  // ENTERPRISE — Notifications broadcast queue
+  // ════════════════════════════════════════════════════════════════
+  sendNotification(input: {
+    title: string;
+    body: string;
+    type: NotificationType;
+    target_type: NotificationQueueEntry["target_type"];
+    target_data?: unknown;
+    user_id?: string | null;
+    sent_by: string;
+  }): Promise<NotificationQueueEntry>;
+  listNotificationQueue(): Promise<NotificationQueueEntry[]>;
+
+  // ════════════════════════════════════════════════════════════════
+  // ENTERPRISE — CMS Content
+  // ════════════════════════════════════════════════════════════════
+  listCmsContent(): Promise<CmsContent[]>;
+  getCmsContent(key: string): Promise<CmsContent | null>;
+  updateCmsContent(
+    key: string,
+    patch: {
+      title?: string;
+      body?: string;
+      is_published?: boolean;
+      updated_by: string;
+    }
+  ): Promise<CmsContent>;
+
+  // ════════════════════════════════════════════════════════════════
+  // ENTERPRISE — Analytics + System Health
+  // ════════════════════════════════════════════════════════════════
+  getDashboardAnalytics(): Promise<DashboardAnalytics>;
+  getSystemHealth(): Promise<SystemHealth>;
 }
 
 export type { SafeUser };

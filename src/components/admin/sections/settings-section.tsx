@@ -9,6 +9,7 @@ import {
   Globe,
   Infinity as InfinityIcon,
   KeyRound,
+  ListChecks,
   Loader2,
   Lock,
   Mail,
@@ -41,6 +42,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { apiFetch } from "@/lib/client";
 import type { PlatformSettings, SafeUser } from "@/lib/types";
@@ -64,9 +67,9 @@ export function SettingsSection({
   onSettingsChange,
   onAdminUserChange,
 }: SettingsSectionProps) {
-  const [tab, setTab] = React.useState<"branding" | "fees" | "security">(
-    "branding"
-  );
+  const [tab, setTab] = React.useState<
+    "branding" | "fees" | "platform" | "security"
+  >("branding");
 
   return (
     <div className="space-y-6">
@@ -77,11 +80,11 @@ export function SettingsSection({
           </>
         }
         title="Master Configuration"
-        description="Total dynamic control over branding, fees, merchants, and admin security — no code edits required. Changes apply instantly across the entire platform."
+        description="Total dynamic control over branding, fees, platform rules, and admin security — no code edits required. Changes apply instantly across the entire platform."
       />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-        <TabsList className="grid w-full grid-cols-3 bg-white/5 p-1 sm:max-w-md">
+        <TabsList className="grid w-full grid-cols-4 bg-white/5 p-1 sm:max-w-2xl">
           <TabsTrigger
             value="branding"
             className="data-[state=active]:bg-gradient-to-br data-[state=active]:from-violet-500 data-[state=active]:to-fuchsia-500 data-[state=active]:text-white text-violet-100/60"
@@ -97,10 +100,17 @@ export function SettingsSection({
             Fees & Merchants
           </TabsTrigger>
           <TabsTrigger
-            value="security"
+            value="platform"
             className="data-[state=active]:bg-gradient-to-br data-[state=active]:from-violet-500 data-[state=active]:to-fuchsia-500 data-[state=active]:text-white text-violet-100/60"
           >
             <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+            Platform Rules
+          </TabsTrigger>
+          <TabsTrigger
+            value="security"
+            className="data-[state=active]:bg-gradient-to-br data-[state=active]:from-violet-500 data-[state=active]:to-fuchsia-500 data-[state=active]:text-white text-violet-100/60"
+          >
+            <KeyRound className="mr-1.5 h-3.5 w-3.5" />
             Admin Profile
           </TabsTrigger>
         </TabsList>
@@ -110,6 +120,9 @@ export function SettingsSection({
         </TabsContent>
         <TabsContent value="fees" className="mt-5">
           <FeesTab settings={settings} onSettingsChange={onSettingsChange} />
+        </TabsContent>
+        <TabsContent value="platform" className="mt-5">
+          <PlatformTab settings={settings} onSettingsChange={onSettingsChange} />
         </TabsContent>
         <TabsContent value="security" className="mt-5">
           <SecurityTab
@@ -606,7 +619,7 @@ function SectionHeader({
   subtitle,
 }: {
   icon: React.ReactNode;
-  tone: "violet" | "fuchsia" | "emerald" | "amber";
+  tone: "violet" | "fuchsia" | "emerald" | "amber" | "rose";
   title: string;
   subtitle: string;
 }) {
@@ -615,6 +628,7 @@ function SectionHeader({
     fuchsia: "from-fuchsia-500/30 to-rose-500/10 text-fuchsia-300",
     emerald: "from-emerald-500/30 to-teal-500/10 text-emerald-300",
     amber: "from-amber-500/30 to-orange-500/10 text-amber-300",
+    rose: "from-rose-500/30 to-red-500/10 text-rose-300",
   } as const;
   return (
     <div className="mb-5 flex items-center gap-2.5">
@@ -815,4 +829,226 @@ function formatVal(v: unknown): string {
     return v.length > 22 ? v.slice(0, 22) + "…" : v || "(empty)";
   }
   return String(v ?? "");
+}
+
+/* ───────────────────────────── PLATFORM RULES TAB ───────────────────────────── */
+
+function PlatformTab({
+  settings,
+  onSettingsChange,
+}: {
+  settings: PlatformSettings;
+  onSettingsChange: (s: PlatformSettings) => void;
+}) {
+  const [draft, setDraft] = React.useState<FormState>(() => toForm(settings));
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => setDraft(toForm(settings)), [settings]);
+
+  function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setDraft((p) => ({ ...p, [key]: value }));
+  }
+
+  const original = React.useMemo(() => toForm(settings), [settings]);
+  const dirtyKeys = useDirtyKeys(original, draft);
+  const isDirty = dirtyKeys.length > 0;
+
+  async function save() {
+    if (!isDirty) return;
+    setSaving(true);
+    const patch: Record<string, unknown> = {};
+    for (const k of dirtyKeys) patch[k] = draft[k];
+    try {
+      const { settings: updated } = await apiFetch<{ settings: PlatformSettings }>(
+        "/api/admin/settings",
+        { method: "PATCH", body: JSON.stringify(patch) }
+      );
+      onSettingsChange(updated);
+      setDraft(toForm(updated));
+      toast.success(
+        dirtyKeys.length === 1 ? "Platform rule updated" : `${dirtyKeys.length} rules updated`
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-4 lg:col-span-2"
+      >
+        {/* Platform Mode */}
+        <GlassCard variant="panel" border="gradient" className="p-5 sm:p-6">
+          <SectionHeader
+            icon={<SettingsIcon className="h-4 w-4" />}
+            tone="violet"
+            title="Platform Mode"
+            subtitle="Maintenance mode and registration toggle"
+          />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-xl bg-white/[0.02] p-4 ring-1 ring-inset ring-white/5">
+              <div>
+                <p className="text-sm font-semibold text-white">Maintenance Mode</p>
+                <p className="text-[11px] text-violet-100/45">When enabled, non-admin users see a maintenance page</p>
+              </div>
+              <Switch
+                checked={draft.maintenance_mode}
+                onCheckedChange={(v) => setField("maintenance_mode", v)}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-white/[0.02] p-4 ring-1 ring-inset ring-white/5">
+              <div>
+                <p className="text-sm font-semibold text-white">Registration Open</p>
+                <p className="text-[11px] text-violet-100/45">When disabled, new signups are blocked</p>
+              </div>
+              <Switch
+                checked={draft.registration_open}
+                onCheckedChange={(v) => setField("registration_open", v)}
+              />
+            </div>
+          </div>
+        </GlassCard>
+
+        {/* Task Rules */}
+        <GlassCard className="p-5 sm:p-6">
+          <SectionHeader
+            icon={<ListChecks className="h-4 w-4" />}
+            tone="emerald"
+            title="Task Configuration"
+            subtitle="Task limits and auto-approval"
+          />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FieldRow label="Max Tasks Per User Per Day" icon={<ListChecks className="h-3.5 w-3.5" />} dirty={dirtyKeys.includes("max_tasks_per_user_per_day")}>
+              <Input type="number" min="0" value={draft.max_tasks_per_user_per_day} onChange={(e) => setField("max_tasks_per_user_per_day", Number(e.target.value))} className="border-white/10 bg-white/5 text-white" />
+            </FieldRow>
+            <div className="flex items-center justify-between rounded-xl bg-white/[0.02] p-4 ring-1 ring-inset ring-white/5">
+              <div>
+                <p className="text-xs font-semibold text-white">Auto-Approve Tasks</p>
+                <p className="text-[10px] text-violet-100/45">Skip manual review</p>
+              </div>
+              <Switch
+                checked={draft.task_review_auto_approve}
+                onCheckedChange={(v) => setField("task_review_auto_approve", v)}
+              />
+            </div>
+          </div>
+        </GlassCard>
+
+        {/* Gmail Config */}
+        <GlassCard className="p-5 sm:p-6">
+          <SectionHeader
+            icon={<Mail className="h-4 w-4" />}
+            tone="amber"
+            title="Gmail Configuration"
+            subtitle="Default password and reward for Gmail selling"
+          />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FieldRow label="Gmail Default Password" icon={<KeyRound className="h-3.5 w-3.5" />} dirty={dirtyKeys.includes("gmail_default_password")}>
+              <Input value={draft.gmail_default_password} onChange={(e) => setField("gmail_default_password", e.target.value)} className="border-white/10 bg-white/5 text-white font-mono" />
+            </FieldRow>
+            <FieldRow label="Gmail Reward" icon={<Wallet className="h-3.5 w-3.5" />} dirty={dirtyKeys.includes("gmail_reward")}>
+              <Input type="number" step="0.01" min="0" value={draft.gmail_reward} onChange={(e) => setField("gmail_reward", Number(e.target.value))} className="border-white/10 bg-white/5 text-white" />
+            </FieldRow>
+            <FieldRow label="Daily Limit Per User (0=unlimited)" icon={<Users className="h-3.5 w-3.5" />} dirty={dirtyKeys.includes("gmail_daily_limit_per_user")}>
+              <Input type="number" min="0" value={draft.gmail_daily_limit_per_user} onChange={(e) => setField("gmail_daily_limit_per_user", Number(e.target.value))} className="border-white/10 bg-white/5 text-white" />
+            </FieldRow>
+          </div>
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center justify-between rounded-xl bg-white/[0.02] p-3 ring-1 ring-inset ring-white/5">
+              <div>
+                <p className="text-xs font-semibold text-white">Gmail Module Enabled</p>
+                <p className="text-[10px] text-violet-100/45">Master switch for the entire Gmail selling system</p>
+              </div>
+              <Switch checked={draft.gmail_module_enabled} onCheckedChange={(v) => setField("gmail_module_enabled", v)} />
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-white/[0.02] p-3 ring-1 ring-inset ring-white/5">
+              <div>
+                <p className="text-xs font-semibold text-white">Submissions Open</p>
+                <p className="text-[10px] text-violet-100/45">Allow users to submit new Gmails</p>
+              </div>
+              <Switch checked={draft.gmail_submission_enabled} onCheckedChange={(v) => setField("gmail_submission_enabled", v)} />
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-white/[0.02] p-3 ring-1 ring-inset ring-white/5">
+              <div>
+                <p className="text-xs font-semibold text-white">Screenshot Required</p>
+                <p className="text-[10px] text-violet-100/45">Require screenshot proof with each submission</p>
+              </div>
+              <Switch checked={draft.gmail_screenshot_required} onCheckedChange={(v) => setField("gmail_screenshot_required", v)} />
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-white/[0.02] p-3 ring-1 ring-inset ring-white/5">
+              <div>
+                <p className="text-xs font-semibold text-white">Auto-Approve</p>
+                <p className="text-[10px] text-violet-100/45">Automatically approve submissions without admin review</p>
+              </div>
+              <Switch checked={draft.gmail_auto_approve} onCheckedChange={(v) => setField("gmail_auto_approve", v)} />
+            </div>
+          </div>
+        </GlassCard>
+
+        {/* Withdrawal Rules */}
+        <GlassCard className="p-5 sm:p-6">
+          <SectionHeader
+            icon={<Wallet className="h-4 w-4" />}
+            tone="fuchsia"
+            title="Withdrawal Rules"
+            subtitle="Limits and fees"
+          />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <FieldRow label="Max Withdrawal Per Day" icon={<Wallet className="h-3.5 w-3.5" />} dirty={dirtyKeys.includes("max_withdrawal_per_day")}>
+              <Input type="number" step="0.01" min="0" value={draft.max_withdrawal_per_day} onChange={(e) => setField("max_withdrawal_per_day", Number(e.target.value))} className="border-white/10 bg-white/5 text-white" />
+            </FieldRow>
+            <FieldRow label="Withdrawal Fee %" icon={<Percent className="h-3.5 w-3.5" />} dirty={dirtyKeys.includes("withdrawal_fee_percent")}>
+              <Input type="number" step="0.01" min="0" value={draft.withdrawal_fee_percent} onChange={(e) => setField("withdrawal_fee_percent", Number(e.target.value))} className="border-white/10 bg-white/5 text-white" />
+            </FieldRow>
+            <FieldRow label="Withdrawal Fee Fixed" icon={<Wallet className="h-3.5 w-3.5" />} dirty={dirtyKeys.includes("withdrawal_fee_fixed")}>
+              <Input type="number" step="0.01" min="0" value={draft.withdrawal_fee_fixed} onChange={(e) => setField("withdrawal_fee_fixed", Number(e.target.value))} className="border-white/10 bg-white/5 text-white" />
+            </FieldRow>
+          </div>
+        </GlassCard>
+
+        {/* Security */}
+        <GlassCard className="p-5 sm:p-6">
+          <SectionHeader
+            icon={<Lock className="h-4 w-4" />}
+            tone="rose"
+            title="Security Policy"
+            subtitle="Password and rate limiting"
+          />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <FieldRow label="Password Min Length" icon={<KeyRound className="h-3.5 w-3.5" />} dirty={dirtyKeys.includes("password_min_length")}>
+              <Input type="number" min="6" value={draft.password_min_length} onChange={(e) => setField("password_min_length", Number(e.target.value))} className="border-white/10 bg-white/5 text-white" />
+            </FieldRow>
+            <FieldRow label="Rate Limit (req/min)" icon={<ShieldCheck className="h-3.5 w-3.5" />} dirty={dirtyKeys.includes("rate_limit_per_minute")}>
+              <Input type="number" min="1" value={draft.rate_limit_per_minute} onChange={(e) => setField("rate_limit_per_minute", Number(e.target.value))} className="border-white/10 bg-white/5 text-white" />
+            </FieldRow>
+            <div className="flex items-center justify-between rounded-xl bg-white/[0.02] p-4 ring-1 ring-inset ring-white/5">
+              <div>
+                <p className="text-xs font-semibold text-white">Captcha</p>
+                <p className="text-[10px] text-violet-100/45">Enable for signup</p>
+              </div>
+              <Switch
+                checked={draft.captcha_enabled}
+                onCheckedChange={(v) => setField("captcha_enabled", v)}
+              />
+            </div>
+          </div>
+        </GlassCard>
+      </motion.div>
+
+      <SavePanel
+        isDirty={isDirty}
+        dirtyKeys={dirtyKeys}
+        original={original}
+        draft={draft}
+        saving={saving}
+        onSave={save}
+        onReset={() => setDraft(original)}
+      />
+    </div>
+  );
 }

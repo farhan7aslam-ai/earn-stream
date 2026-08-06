@@ -7,6 +7,8 @@ import {
   Gift,
   LayoutDashboard,
   ListChecks,
+  Mail,
+  Music2,
   Wallet as WalletIcon,
 } from "lucide-react";
 import { AppTopbar } from "@/components/shared/app-topbar";
@@ -25,9 +27,18 @@ import { TasksSection } from "./sections/tasks-section";
 import { WalletSection } from "./sections/wallet-section";
 import { ReferralsSection } from "./sections/referrals-section";
 import { WithdrawSection } from "./sections/withdraw-section";
+import { TikTokTasksSection } from "./sections/tiktok-tasks-section";
+import { GmailSellingSection } from "./sections/gmail-selling-section";
 import { PendingApprovalScreen } from "./pending-approval-screen";
 
-type Section = "overview" | "tasks" | "wallet" | "referrals" | "withdraw";
+type Section =
+  | "overview"
+  | "tasks"
+  | "tiktok_tasks"
+  | "gmail"
+  | "wallet"
+  | "referrals"
+  | "withdraw";
 
 interface UserPanelProps {
   user: SafeUser;
@@ -39,6 +50,8 @@ interface UserPanelProps {
 const NAV: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "tasks", label: "Tasks", icon: ListChecks },
+  { id: "tiktok_tasks", label: "TikTok Tasks", icon: Music2 },
+  { id: "gmail", label: "Gmail Selling", icon: Mail },
   { id: "wallet", label: "Wallet", icon: WalletIcon },
   { id: "referrals", label: "Referrals", icon: Gift },
   { id: "withdraw", label: "Withdraw", icon: ArrowDownToLine },
@@ -231,6 +244,12 @@ export function UserPanel({
                   tasks={tasks}
                   refresh={refresh}
                 />
+              )}
+              {section === "tiktok_tasks" && (
+                <TikTokTasksSection user={user} settings={settings} />
+              )}
+              {section === "gmail" && (
+                <GmailSellingSection user={user} settings={settings} />
               )}
               {section === "wallet" && (
                 <WalletSection

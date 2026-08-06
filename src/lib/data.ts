@@ -1,4 +1,5 @@
 import { supabaseStore } from "./supabase/supabase-store";
+import type { Store } from "./store";
 
 /**
  * The singleton data store.
@@ -10,4 +11,4 @@ import { supabaseStore } from "./supabase/supabase-store";
  * Make sure you have run the schema migration in your Supabase SQL Editor
  * (see `supabase/migrations/`) so all tables + the master admin seed exist.
  */
-export const store = supabaseStore;
+export const store: Store = supabaseStore;

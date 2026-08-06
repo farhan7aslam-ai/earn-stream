@@ -5,11 +5,11 @@ export async function GET(req: NextRequest) {
   const r = await requireAdmin();
   if (!r.ok) return r.res;
   const sp = new URL(req.url).searchParams;
-  const filter: { type?: "withdrawal" | "subscription" | "joining_fee"; status?: "pending" | "approved" | "rejected" } = {};
+  const filter: { type?: "withdrawal" | "subscription" | "joining_fee"; status?: "pending" | "approved" | "rejected" | "paid" | "cancelled" } = {};
   const type = sp.get("type");
   if (type) filter.type = type as "withdrawal";
   const status = sp.get("status");
-  if (status) filter.status = status as "pending" | "approved" | "rejected";
+  if (status) filter.status = status as "pending" | "approved" | "rejected" | "paid" | "cancelled";
   const payments = await store.listPayments(filter);
   return json({ payments });
 }
@@ -26,6 +26,32 @@ export async function POST(req: NextRequest) {
     }
     if (action === "reject") {
       const p = await store.rejectWithdrawal(String(id));
+      return json({ payment: p });
+    }
+    if (action === "mark_paid") {
+      const p = await store.markPaidWithdrawal(String(id));
+      await store.logAudit({
+        admin_id: r.user.id,
+        action: "mark_paid_withdrawal",
+        entity_type: "payment",
+        entity_id: String(id),
+        new_value: p,
+        ip_address: req.headers.get("x-forwarded-for"),
+        user_agent: req.headers.get("user-agent"),
+      });
+      return json({ payment: p });
+    }
+    if (action === "cancel") {
+      const p = await store.cancelWithdrawal(String(id));
+      await store.logAudit({
+        admin_id: r.user.id,
+        action: "cancel_withdrawal",
+        entity_type: "payment",
+        entity_id: String(id),
+        new_value: p,
+        ip_address: req.headers.get("x-forwarded-for"),
+        user_agent: req.headers.get("user-agent"),
+      });
       return json({ payment: p });
     }
     return error("Unknown action", 422);

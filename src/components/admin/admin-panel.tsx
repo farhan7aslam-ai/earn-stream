@@ -3,10 +3,25 @@
 import * as React from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Activity,
+  BarChart3,
+  Bell,
+  Database,
+  FileSpreadsheet,
+  FileText,
   Gauge,
+  Gift,
+  History,
   ListChecks,
+  Lock,
+  Mail,
+  Megaphone,
+  Music2,
+  Search,
+  Server,
   Settings as SettingsIcon,
   ShieldCheck,
+  UserCircle,
   Users,
   Wallet,
 } from "lucide-react";
@@ -26,14 +41,46 @@ import { UsersSection } from "./sections/users-section";
 import { WithdrawalsSection } from "./sections/withdrawals-section";
 import { SettingsSection } from "./sections/settings-section";
 import { JoiningFeeVerificationSection } from "./sections/joining-fee-verification-section";
+import { TaskManagerSection } from "./sections/task-manager-section";
+import { GmailManagementSection } from "./sections/gmail-management-section";
+import { GmailCampaignsSection } from "./sections/gmail-campaigns-section";
+import { AnnouncementsSection } from "./sections/announcements-section";
+import { AuditLogsSection } from "./sections/audit-logs-section";
+import { AnalyticsSection } from "./sections/analytics-section";
+import { ReportsSection } from "./sections/reports-section";
+import { StorageManagerSection } from "./sections/storage-manager-section";
+import { CmsContentSection } from "./sections/cms-content-section";
+import { SeoSection } from "./sections/seo-section";
+import { SecuritySection } from "./sections/security-section";
+import { SystemHealthSection } from "./sections/system-health-section";
+import { NotificationsSendSection } from "./sections/notifications-send-section";
+import { WalletAdminSection } from "./sections/wallet-admin-section";
+import { ReferralConfigSection } from "./sections/referral-config-section";
 
 type AdminSection =
   | "dashboard"
-  | "tasks"
-  | "joining_fees"
   | "users"
+  | "tasks_cms"
+  | "tasks"
+  | "gmail"
+  | "gmail_campaigns"
+  | "wallet"
   | "withdrawals"
-  | "settings";
+  | "joining_fees"
+  | "subscriptions"
+  | "referral"
+  | "announcements"
+  | "notifications"
+  | "reports"
+  | "analytics"
+  | "audit_logs"
+  | "storage"
+  | "cms"
+  | "seo"
+  | "settings"
+  | "security"
+  | "system_health"
+  | "admin_profile";
 
 interface AdminPanelProps {
   user: SafeUser;
@@ -47,13 +94,31 @@ const NAV: {
   id: AdminSection;
   label: string;
   icon: React.ElementType;
+  badgeKey?: "tasks" | "joining_fees" | "withdrawals";
 }[] = [
   { id: "dashboard", label: "Dashboard", icon: Gauge },
-  { id: "tasks", label: "Task Verification", icon: ListChecks },
-  { id: "joining_fees", label: "Joining Fees", icon: ShieldCheck },
   { id: "users", label: "Users", icon: Users },
-  { id: "withdrawals", label: "Withdrawals", icon: Wallet },
-  { id: "settings", label: "Settings", icon: SettingsIcon },
+  { id: "tasks_cms", label: "TikTok Tasks", icon: Music2 },
+  { id: "tasks", label: "Task Verification", icon: ListChecks, badgeKey: "tasks" },
+  { id: "gmail", label: "Gmail Selling", icon: Mail },
+  { id: "gmail_campaigns", label: "Gmail Campaigns", icon: Megaphone },
+  { id: "wallet", label: "Wallet", icon: Wallet },
+  { id: "withdrawals", label: "Withdrawals", icon: Wallet, badgeKey: "withdrawals" },
+  { id: "joining_fees", label: "Joining Fees", icon: ShieldCheck, badgeKey: "joining_fees" },
+  { id: "subscriptions", label: "Subscriptions", icon: SettingsIcon },
+  { id: "referral", label: "Referral System", icon: Gift },
+  { id: "announcements", label: "Announcements", icon: Megaphone },
+  { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "reports", label: "Reports", icon: FileSpreadsheet },
+  { id: "analytics", label: "Analytics", icon: BarChart3 },
+  { id: "audit_logs", label: "Audit Logs", icon: History },
+  { id: "storage", label: "Storage Manager", icon: Database },
+  { id: "cms", label: "CMS", icon: FileText },
+  { id: "seo", label: "SEO", icon: Search },
+  { id: "settings", label: "Website Settings", icon: SettingsIcon },
+  { id: "security", label: "Security", icon: Lock },
+  { id: "system_health", label: "System Health", icon: Server },
+  { id: "admin_profile", label: "Admin Profile", icon: UserCircle },
 ];
 
 export function AdminPanel({
@@ -112,6 +177,16 @@ export function AdminPanel({
     }
   }, []);
 
+  const badgeFor = React.useCallback(
+    (id: AdminSection) => {
+      if (id === "tasks") return pendingTasks;
+      if (id === "joining_fees") return pendingJoiningFees;
+      if (id === "withdrawals") return pendingWithdrawals;
+      return 0;
+    },
+    [pendingTasks, pendingJoiningFees, pendingWithdrawals]
+  );
+
   // Mobile horizontal pill nav (rendered in topbar leftSlot)
   const mobileNav = (
     <nav
@@ -120,14 +195,7 @@ export function AdminPanel({
     >
       {NAV.map((item) => {
         const active = section === item.id;
-        const badge =
-          item.id === "tasks"
-            ? pendingTasks
-            : item.id === "joining_fees"
-              ? pendingJoiningFees
-              : item.id === "withdrawals"
-                ? pendingWithdrawals
-                : 0;
+        const badge = badgeFor(item.id);
         return (
           <button
             key={item.id}
@@ -170,24 +238,20 @@ export function AdminPanel({
       <div className="mx-auto flex w-full max-w-7xl flex-1 gap-6 px-4 py-6 sm:px-5 sm:py-8">
         {/* Desktop sidebar */}
         <aside className="hidden w-60 shrink-0 lg:block">
-          <GlassCard className="sticky top-24 p-3">
+          <GlassCard className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-hidden p-3">
             <div className="mb-2 flex items-center justify-between px-3 pt-1">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-100/40">
                 Console
               </p>
               <PremiumBadge tone="fuchsia">Admin</PremiumBadge>
             </div>
-            <nav aria-label="Admin sections" className="space-y-1">
+            <nav
+              aria-label="Admin sections"
+              className="max-h-[calc(100vh-20rem)] space-y-1 overflow-y-auto pr-1"
+            >
               {NAV.map((item) => {
                 const active = section === item.id;
-                const badge =
-                  item.id === "tasks"
-                    ? pendingTasks
-                    : item.id === "joining_fees"
-                      ? pendingJoiningFees
-                      : item.id === "withdrawals"
-                        ? pendingWithdrawals
-                        : 0;
+                const badge = badgeFor(item.id);
                 return (
                   <button
                     key={item.id}
@@ -212,7 +276,7 @@ export function AdminPanel({
                           : "text-violet-100/50 group-hover:text-violet-200"
                       }`}
                     />
-                    {item.label}
+                    <span className="truncate">{item.label}</span>
                     {badge > 0 && (
                       <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-fuchsia-500/30 px-1.5 text-[10px] font-bold text-fuchsia-200">
                         {badge > 9 ? "9+" : badge}
@@ -225,7 +289,8 @@ export function AdminPanel({
 
             {/* Live metrics tile */}
             <div className="mt-4 rounded-xl bg-white/[0.02] p-3 ring-1 ring-inset ring-white/5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-100/40">
+              <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-violet-100/40">
+                <Activity className="h-3 w-3" />
                 Live · refreshes 12s
               </p>
               <div className="mt-2 space-y-1.5 text-xs">
@@ -278,6 +343,8 @@ export function AdminPanel({
                   onNavigate={navigate}
                 />
               )}
+              {section === "users" && <UsersSection tick={tick} />}
+              {section === "tasks_cms" && <TaskManagerSection />}
               {section === "tasks" && (
                 <TaskVerificationSection
                   pendingCount={pendingTasks}
@@ -285,14 +352,9 @@ export function AdminPanel({
                   tick={tick}
                 />
               )}
-              {section === "joining_fees" && (
-                <JoiningFeeVerificationSection
-                  pendingCount={pendingJoiningFees}
-                  onCountChange={setPendingJoiningFees}
-                  tick={tick}
-                />
-              )}
-              {section === "users" && <UsersSection tick={tick} />}
+              {section === "gmail" && <GmailManagementSection />}
+              {section === "gmail_campaigns" && <GmailCampaignsSection />}
+              {section === "wallet" && <WalletAdminSection />}
               {section === "withdrawals" && (
                 <WithdrawalsSection
                   pendingCount={pendingWithdrawals}
@@ -304,7 +366,53 @@ export function AdminPanel({
                   tick={tick}
                 />
               )}
+              {section === "joining_fees" && (
+                <JoiningFeeVerificationSection
+                  pendingCount={pendingJoiningFees}
+                  onCountChange={setPendingJoiningFees}
+                  tick={tick}
+                />
+              )}
+              {section === "subscriptions" && (
+                <SettingsSection
+                  settings={settings}
+                  adminUser={user}
+                  onSettingsChange={onSettingsChange}
+                  onAdminUserChange={onUserUpdate}
+                />
+              )}
+              {section === "referral" && (
+                <ReferralConfigSection
+                  settings={settings}
+                  onSettingsChange={onSettingsChange}
+                />
+              )}
+              {section === "announcements" && <AnnouncementsSection />}
+              {section === "notifications" && <NotificationsSendSection />}
+              {section === "reports" && <ReportsSection />}
+              {section === "analytics" && <AnalyticsSection />}
+              {section === "audit_logs" && <AuditLogsSection />}
+              {section === "storage" && <StorageManagerSection />}
+              {section === "cms" && <CmsContentSection />}
+              {section === "seo" && (
+                <SeoSection
+                  settings={settings}
+                  onSettingsChange={onSettingsChange}
+                />
+              )}
               {section === "settings" && (
+                <SettingsSection
+                  settings={settings}
+                  adminUser={user}
+                  onSettingsChange={onSettingsChange}
+                  onAdminUserChange={onUserUpdate}
+                />
+              )}
+              {section === "security" && (
+                <SecuritySection settings={settings} />
+              )}
+              {section === "system_health" && <SystemHealthSection />}
+              {section === "admin_profile" && (
                 <SettingsSection
                   settings={settings}
                   adminUser={user}

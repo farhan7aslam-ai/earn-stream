@@ -285,18 +285,13 @@ on conflict (id) do nothing;
 -- prefix marker that the login handler upgrades to a real scrypt hash on
 -- first login. No other admin / fallback credentials exist anywhere in the
 -- codebase. The admin role is NEVER granted via the signup endpoint.
---
--- NOTE: This seed only references columns that exist in the initial schema.
--- The `joining_fee_status` column is added in migration 0002; its backfill
--- (`update ... set joining_fee_status = 'approved' where joining_fee_paid`)
--- will correctly mark this admin as approved when 0002 runs.
 -- =====================================================================
 do $$
 begin
   if not exists (select 1 from public.users where role = 'admin') then
     insert into public.users (
       email, password_hash, full_name, phone, role,
-      joining_fee_paid,
+      joining_fee_paid, joining_fee_status,
       is_banned, is_suspended,
       subscription_end_date, referral_code
     )
@@ -307,6 +302,7 @@ begin
       '',
       'admin',
       true,
+      'approved',
       false,
       false,
       now() + interval '365 days',

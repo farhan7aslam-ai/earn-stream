@@ -4,8 +4,10 @@ import * as React from "react";
 import { motion } from "framer-motion";
 import {
   ArrowDownToLine,
+  Ban,
   CheckCircle2,
   Clock,
+  Download,
   Loader2,
   RefreshCw,
   ThumbsDown,
@@ -48,6 +50,7 @@ import {
   MethodPill,
   PaymentStatusPill,
   initialsOf,
+  methodLabel,
 } from "../shared";
 
 interface WithdrawalsSectionProps {
@@ -65,7 +68,7 @@ export function WithdrawalsSection({
   onCountChange,
   tick,
 }: WithdrawalsSectionProps) {
-  const { money } = useCurrency();
+  const { money, symbol } = useCurrency();
   const [tab, setTab] = React.useState<Tab>("pending");
   const [payments, setPayments] = React.useState<Payment[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -87,7 +90,8 @@ export function WithdrawalsSection({
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
       setPayments(list);
-      if (tab === "pending") onCountChange(list.length, pendingTotalFromList(list));
+      if (tab === "pending")
+        onCountChange(list.length, pendingTotalFromList(list));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -125,18 +129,38 @@ export function WithdrawalsSection({
     });
   }, [payments, userCache]);
 
-  async function act(payment: Payment, action: "approve" | "reject") {
+  async function act(
+    payment: Payment,
+    action: "approve" | "reject" | "mark_paid" | "cancel"
+  ) {
     setBusyId(payment.id);
     const prev = payments;
-    // Optimistic removal for pending tab
-    const next: Payment[] =
+    let newStatus: Payment["status"];
+    let newNote: string;
+    if (action === "approve") {
+      newStatus = "approved";
+      newNote = "Withdrawal approved";
+    } else if (action === "reject") {
+      newStatus = "rejected";
+      newNote = "Withdrawal rejected";
+    } else if (action === "mark_paid") {
+      newStatus = "paid";
+      newNote = "Withdrawal marked as paid";
+    } else {
+      newStatus = "cancelled";
+      newNote = "Withdrawal cancelled";
+    }
+
+    // Optimistic removal for pending tab; otherwise update row in place.
+    const next =
       tab === "pending"
         ? payments.filter((p) => p.id !== payment.id)
         : payments.map((p) =>
             p.id === payment.id
               ? {
                   ...p,
-                  status: (action === "approve" ? "approved" : "rejected") as Payment["status"],
+                  status: newStatus,
+                  note: newNote,
                   processed_at: new Date().toISOString(),
                 }
               : p
@@ -147,17 +171,79 @@ export function WithdrawalsSection({
         method: "POST",
         body: JSON.stringify({ id: payment.id, action }),
       });
-      toast.success(
+      const msg =
         action === "approve"
           ? `Withdrawal approved · ${money(Math.abs(payment.amount))} released`
-          : "Withdrawal rejected"
-      );
+          : action === "reject"
+            ? "Withdrawal rejected · refunded"
+            : action === "mark_paid"
+              ? `Marked as paid · ${money(Math.abs(payment.amount))}`
+              : "Withdrawal cancelled · refunded";
+      toast.success(msg);
     } catch (err) {
       setPayments(prev);
       toast.error(err instanceof Error ? err.message : "Action failed");
     } finally {
       setBusyId(null);
     }
+  }
+
+  /** Export the current withdrawal list as a CSV file (client-side). */
+  function exportCsv() {
+    if (payments.length === 0) {
+      toast.info("Nothing to export — the current view is empty.");
+      return;
+    }
+    const headers = [
+      "ID",
+      "User ID",
+      "User Name",
+      "User Email",
+      "Amount",
+      "Currency",
+      "Method",
+      "Account",
+      "Status",
+      "Note",
+      "Created At",
+      "Processed At",
+    ];
+    const escape = (v: unknown): string => {
+      const s = v === null || v === undefined ? "" : String(v);
+      if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const rows = payments.map((p) => {
+      const u = userCache[p.user_id];
+      return [
+        p.id,
+        p.user_id,
+        u?.full_name ?? "",
+        u?.email ?? "",
+        Math.abs(p.amount).toFixed(2),
+        symbol,
+        methodLabel(p.method),
+        p.account ?? "",
+        p.status,
+        p.note ?? "",
+        p.created_at,
+        p.processed_at ?? "",
+      ]
+        .map(escape)
+        .join(",");
+    });
+    const csv = [headers.map(escape).join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    a.download = `withdrawals-${tab}-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${payments.length} withdrawal${payments.length === 1 ? "" : "s"} to CSV`);
   }
 
   return (
@@ -169,7 +255,7 @@ export function WithdrawalsSection({
           </>
         }
         title="Payout requests"
-        description="Approve or reject member withdrawal requests. Approved payouts are released from the user's balance; rejected ones refund it."
+        description="Approve, reject, mark paid, or cancel member withdrawal requests. Approved payouts are released from the user's balance; rejected or cancelled ones refund it."
       />
 
       {/* Stats */}
@@ -233,7 +319,7 @@ export function WithdrawalsSection({
         </motion.div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs + Export */}
       <GlassCard className="flex flex-wrap items-center justify-between gap-3 p-4">
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
           <TabsList className="bg-white/5">
@@ -257,15 +343,26 @@ export function WithdrawalsSection({
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <GlowButton
-          variant="ghost"
-          size="sm"
-          onClick={refresh}
-          disabled={loading}
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </GlowButton>
+        <div className="flex items-center gap-2">
+          <GlowButton
+            variant="outline"
+            size="sm"
+            onClick={exportCsv}
+            disabled={loading || payments.length === 0}
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export CSV
+          </GlowButton>
+          <GlowButton
+            variant="ghost"
+            size="sm"
+            onClick={refresh}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </GlowButton>
+        </div>
       </GlassCard>
 
       {/* Table */}
@@ -285,7 +382,7 @@ export function WithdrawalsSection({
                 <ArrowDownToLine className="h-6 w-6" />
               )
             }
-            title={tab === "pending" ? "No active logs found" : "No active logs found"}
+            title="No active logs found"
             description={
               tab === "pending"
                 ? "All caught up. New withdrawal requests will appear here automatically."
@@ -318,6 +415,14 @@ export function WithdrawalsSection({
                     const name = u
                       ? u.full_name || u.email
                       : `User ${p.user_id.slice(0, 8)}`;
+                    const canApproveReject = p.status === "pending";
+                    const canMarkPaid = p.status === "approved";
+                    const canCancel =
+                      p.status === "pending" || p.status === "approved";
+                    const isFinal =
+                      p.status === "paid" ||
+                      p.status === "rejected" ||
+                      p.status === "cancelled";
                     return (
                       <motion.tr
                         key={p.id}
@@ -333,7 +438,10 @@ export function WithdrawalsSection({
                           <div className="flex items-center gap-2.5">
                             <Avatar className="h-8 w-8 ring-1 ring-inset ring-white/10">
                               <AvatarFallback className="bg-gradient-to-br from-violet-500 to-fuchsia-500 text-[10px] font-bold text-white">
-                                {initialsOf(u?.full_name ?? "", u?.email ?? name)}
+                                {initialsOf(
+                                  u?.full_name ?? "",
+                                  u?.email ?? name
+                                )}
                               </AvatarFallback>
                             </Avatar>
                             <div className="min-w-0">
@@ -375,46 +483,86 @@ export function WithdrawalsSection({
                           </TableCell>
                         )}
                         <TableCell className="text-right">
-                          {p.status === "pending" ? (
-                            <div className="flex justify-end gap-1.5">
+                          <div className="flex flex-wrap justify-end gap-1.5">
+                            {canApproveReject && (
+                              <>
+                                <GlowButton
+                                  variant="success"
+                                  size="sm"
+                                  onClick={() => act(p, "approve")}
+                                  disabled={busyId === p.id}
+                                >
+                                  {busyId === p.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <ThumbsUp className="h-3.5 w-3.5" />
+                                  )}
+                                  Approve
+                                </GlowButton>
+                                <GlowButton
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={() => act(p, "reject")}
+                                  disabled={busyId === p.id}
+                                >
+                                  <ThumbsDown className="h-3.5 w-3.5" />
+                                  Reject
+                                </GlowButton>
+                              </>
+                            )}
+                            {canMarkPaid && (
                               <GlowButton
-                                variant="success"
+                                variant="primary"
                                 size="sm"
-                                onClick={() => act(p, "approve")}
+                                onClick={() => act(p, "mark_paid")}
                                 disabled={busyId === p.id}
+                                className="from-emerald-500 via-teal-500 to-emerald-600 shadow-[0_8px_30px_-8px_rgba(16,185,129,0.6)]"
                               >
                                 {busyId === p.id ? (
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                 ) : (
-                                  <ThumbsUp className="h-3.5 w-3.5" />
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
                                 )}
-                                Approve
+                                Mark Paid
                               </GlowButton>
+                            )}
+                            {canCancel && (
                               <GlowButton
-                                variant="danger"
+                                variant="outline"
                                 size="sm"
-                                onClick={() => act(p, "reject")}
+                                onClick={() => act(p, "cancel")}
                                 disabled={busyId === p.id}
+                                className="border-amber-400/30 bg-amber-500/5 text-amber-200 hover:bg-amber-500/15 hover:border-amber-400/50"
                               >
-                                <ThumbsDown className="h-3.5 w-3.5" />
-                                Reject
+                                <Ban className="h-3.5 w-3.5" />
+                                Cancel
                               </GlowButton>
-                            </div>
-                          ) : (
-                            <div className="flex justify-end">
-                              {p.status === "approved" ? (
-                                <PremiumBadge tone="emerald">
+                            )}
+                            {isFinal && (
+                              <PremiumBadge
+                                tone={
+                                  p.status === "paid"
+                                    ? "violet"
+                                    : p.status === "cancelled"
+                                      ? "neutral"
+                                      : "rose"
+                                }
+                              >
+                                {p.status === "paid" ? (
                                   <CheckCircle2 className="h-3 w-3" />
-                                  Approved
-                                </PremiumBadge>
-                              ) : (
-                                <PremiumBadge tone="rose">
+                                ) : p.status === "cancelled" ? (
+                                  <Ban className="h-3 w-3" />
+                                ) : (
                                   <XCircle className="h-3 w-3" />
-                                  Rejected
-                                </PremiumBadge>
-                              )}
-                            </div>
-                          )}
+                                )}
+                                {p.status === "paid"
+                                  ? "Paid"
+                                  : p.status === "cancelled"
+                                    ? "Cancelled"
+                                    : "Rejected"}
+                              </PremiumBadge>
+                            )}
+                          </div>
                         </TableCell>
                       </motion.tr>
                     );

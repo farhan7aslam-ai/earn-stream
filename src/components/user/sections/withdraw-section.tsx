@@ -60,6 +60,8 @@ interface WithdrawSectionProps {
   refresh: () => void;
 }
 
+const MIN_WITHDRAWAL = 50;
+
 export function WithdrawSection({
   user,
   settings,
@@ -68,7 +70,6 @@ export function WithdrawSection({
   refresh,
 }: WithdrawSectionProps) {
   const { money, symbol } = useCurrency();
-  const minWithdrawal = Number(settings.minimum_payout) || 0;
   const [amount, setAmount] = React.useState("");
   const [method, setMethod] = React.useState<PaymentMethod>("easypaisa");
   const [account, setAccount] = React.useState("");
@@ -76,7 +77,7 @@ export function WithdrawSection({
 
   const balance = wallet?.balance ?? user.balance;
   const amt = Number(amount) || 0;
-  const tooLow = amt < minWithdrawal;
+  const tooLow = amt < MIN_WITHDRAWAL;
   const tooHigh = amt > balance;
   const canSubmit =
     amt > 0 && !tooLow && !tooHigh && account.trim().length >= 4 && !loading;
@@ -184,17 +185,17 @@ export function WithdrawSection({
                 </Label>
                 <Input
                   type="number"
-                  min={minWithdrawal}
+                  min={MIN_WITHDRAWAL}
                   max={balance}
                   step="0.01"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  placeholder={`Min ${symbol} ${minWithdrawal}`}
+                  placeholder={`Min ${symbol} ${MIN_WITHDRAWAL}`}
                   className="border-white/10 bg-white/5 text-white placeholder:text-violet-100/30"
                 />
                 {amt > 0 && tooLow && (
                   <p className="text-[11px] text-amber-300/80">
-                    Minimum withdrawal is {symbol} {minWithdrawal}.
+                    Minimum withdrawal is {symbol} {MIN_WITHDRAWAL}.
                   </p>
                 )}
                 {tooHigh && (
@@ -272,7 +273,7 @@ export function WithdrawSection({
 
               <p className="flex items-center justify-center gap-1.5 text-[11px] text-violet-100/40">
                 <Info className="h-3 w-3" />
-                Minimum {symbol} {minWithdrawal} · Processed within 24 hours
+                Minimum {symbol} {MIN_WITHDRAWAL} · Processed within 24 hours
               </p>
             </form>
           </GlassCard>
