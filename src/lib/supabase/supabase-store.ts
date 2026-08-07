@@ -2027,7 +2027,7 @@ export const supabaseStore: Store = {
     const sb = createServerClient();
     const { data, error } = await sb
       .from("gmail_submissions")
-      .select("*, users(email, full_name)")
+      .select("*, users!gmail_submissions_user_id_fkey(email, full_name)")
       .eq("user_id", user_id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
@@ -2038,7 +2038,7 @@ export const supabaseStore: Store = {
     const sb = createServerClient();
     let q = sb
       .from("gmail_submissions")
-      .select("*, users(email, full_name)")
+      .select("*, users!gmail_submissions_user_id_fkey(email, full_name)")
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
     if (filter?.status) q = q.eq("status", filter.status);
