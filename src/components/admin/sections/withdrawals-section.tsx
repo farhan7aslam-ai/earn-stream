@@ -82,9 +82,17 @@ export function WithdrawalsSection({
     try {
       const params = new URLSearchParams({ type: "withdrawal" });
       if (tab === "pending") params.set("status", "pending");
-      const { payments: list } = await apiFetch<{ payments: Payment[] }>(
-        `/api/admin/payments?${params.toString()}`
-      );
+      const response = await apiFetch<{
+  payments?: Payment[];
+  data?: {
+    payments?: Payment[];
+  };
+}>(`/api/admin/payments?${params.toString()}`);
+
+const list: Payment[] =
+  response?.payments ??
+  response?.data?.payments ??
+  [];
       list.sort(
         (a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -577,8 +585,8 @@ export function WithdrawalsSection({
   );
 }
 
-function pendingTotalFromList(list: Payment[]): number {
-  return list
+function pendingTotalFromList(list?: Payment[]): number {
+  return (list ?? [])
     .filter((p) => p.status === "pending")
-    .reduce((s, p) => s + Math.abs(p.amount), 0);
+    .reduce((s, p) => s + Math.abs(p.amount ?? 0), 0);
 }
