@@ -50,18 +50,28 @@ export function AppTopbar({
   leftSlot,
 }: AppTopbarProps) {
   const [notifications, setNotifications] = React.useState<Notification[]>([]);
+const safeNotifications = Array.isArray(notifications)
+  ? notifications
+  : [];
   const [notifOpen, setNotifOpen] = React.useState(false);
 
   const loadNotif = React.useCallback(async () => {
-    try {
-      const { notifications } = await apiFetch<{ notifications: Notification[] }>(
-        "/api/notifications"
-      );
-      setNotifications(notifications);
-    } catch {
-      /* ignore */
+  try {
+    const res: any = await apiFetch("/api/notifications");
+
+    if (Array.isArray(res)) {
+      setNotifications(res);
+    } else if (Array.isArray(res?.notifications)) {
+      setNotifications(res.notifications);
+    } else if (Array.isArray(res?.data)) {
+      setNotifications(res.data);
+    } else {
+      setNotifications([]);
     }
-  }, []);
+  } catch {
+    setNotifications([]);
+  }
+}, []);
 
   React.useEffect(() => {
     loadNotif();
