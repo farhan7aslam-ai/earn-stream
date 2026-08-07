@@ -141,31 +141,61 @@ export function AdminPanel({
   const [pendingWithdrawalsTotal, setPendingWithdrawalsTotal] = React.useState(0);
 
   const refresh = React.useCallback(async () => {
-    try {
-      const [statsRes, tasksRes, withdrawalsRes] = await Promise.all([
-        apiFetch<{ stats: AdminStats }>("/api/admin/stats"),
-        apiFetch<{ tasks: unknown[] }>(
-          "/api/admin/tasks?status=pending&type="
-        ).catch(() => ({ tasks: [] as unknown[] })),
-        apiFetch<{ payments: Array<{ amount: number; status: string }> }>(
-          "/api/admin/payments?type=withdrawal&status=pending"
-        ).catch(() => ({ payments: [] })),
-      ]);
-      setStats(statsRes.stats);
-      setPendingTasks(tasksRes.tasks.length);
-      setPendingJoiningFees(statsRes.stats.pending_joining_fees_count ?? 0);
-      const pendings = withdrawalsRes.payments.filter((p) => p.status === "pending");
-      setPendingWithdrawals(pendings.length);
-      setPendingWithdrawalsTotal(
-        pendings.reduce((s, p) => s + Math.abs(p.amount), 0)
-      );
-    } catch {
-      /* ignore polling errors — topbar handles auth */
-    } finally {
-      setLoadingStats(false);
-    }
-  }, []);
+  try {
+    const [statsRes, tasksRes, withdrawalsRes] = await Promise.all([
+      apiFetch<{ stats?: AdminStats }>("/api/admin/stats"),
 
+      apiFetch<{ tasks?: unknown[] }>(
+        "/api/admin/tasks?status=pending&type="
+      ).catch(() => ({
+        tasks: [],
+      })),
+
+      apiFetch<{
+        payments?: Array<{
+          amount: number;
+          status: string;
+        }>;
+      }>(
+        "/api/admin/payments?type=withdrawal&status=pending"
+      ).catch(() => ({
+        payments: [],
+      })),
+    ]);
+
+    const statsData = statsRes.stats ?? ({} as AdminStats);
+
+    setStats(statsData);
+
+    const tasks = tasksRes.tasks ?? [];
+    setPendingTasks(tasks.length);
+
+    setPendingJoiningFees(
+      statsData.pending_joining_fees_count ?? 0
+    );
+
+    const payments = withdrawalsRes.payments ?? [];
+
+    const pendings = payments.filter(
+      (p) => p.status === "pending"
+    );
+
+    setPendingWithdrawals(pendings.length);
+
+    setPendingWithdrawalsTotal(
+      pendings.reduce(
+        (sum, p) =>
+          sum + Math.abs(Number(p.amount) || 0),
+        0
+      )
+    );
+
+  } catch (error) {
+    console.error("Admin refresh failed:", error);
+  } finally {
+    setLoadingStats(false);
+  }
+}, []);
   React.useEffect(() => {
     refresh();
   }, [refresh, tick]);
