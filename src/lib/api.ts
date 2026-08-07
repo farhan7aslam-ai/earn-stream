@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser, getCurrentRawUser } from "./auth";
+import { getCurrentUser, getCurrentRawUser, isAdmin } from "./auth";
 import { store } from "./data";
 import { enforceSubscription } from "./auth";
 import { toSafeUser } from "./types";
@@ -85,7 +85,7 @@ export async function requireAdmin(): Promise<
   if (!r.ok) return r;
 
   // Server-side role verification — never trust frontend
-  if (r.user.role !== "admin") {
+  if (!isAdmin(r.user)) {
     return {
       ok: false,
       res: error("Forbidden — admin access required", 403, "FORBIDDEN"),
@@ -105,7 +105,7 @@ export async function requireActiveUser(): Promise<
   const r = await requireUser();
   if (!r.ok) return r;
 
-  if (r.user.role === "admin") return r; // admins bypass
+  if (isAdmin(r.user)) return r; // admins bypass
 
   if (!r.user.joining_fee_paid) {
     return {

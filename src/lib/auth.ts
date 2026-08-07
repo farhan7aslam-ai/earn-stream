@@ -5,6 +5,10 @@ import { toSafeUser, type SafeUser, type User } from "./types";
 export const SESSION_COOKIE = "es_session";
 const SESSION_MAX_AGE = 30 * 24 * 60 * 60; // 30 days
 
+function normalizeRole(role: unknown): string {
+  return typeof role === "string" ? role.trim().toLowerCase() : "";
+}
+
 /** Returns the current user (safe, no password hash) or null. */
 export async function getCurrentUser(): Promise<SafeUser | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
@@ -38,7 +42,13 @@ export async function setSessionCookie(token: string) {
 
 export async function clearSessionCookie() {
   const c = await cookies();
-  c.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+  c.set(SESSION_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  });
 }
 
 /**
@@ -58,5 +68,6 @@ export async function enforceSubscription(user: User): Promise<User> {
 }
 
 export function isAdmin(user: SafeUser | null): boolean {
-  return user?.role === "admin";
+  if (!user) return false;
+  return normalizeRole(user.role) === "admin";
 }

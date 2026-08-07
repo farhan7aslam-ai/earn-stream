@@ -3,6 +3,22 @@
 import * as React from "react";
 
 /** Generic fetcher that returns parsed JSON or throws. */
+function extractErrorMessage(data: unknown): string {
+  if (typeof data === "object" && data && data !== null) {
+    const record = data as Record<string, unknown>;
+    if (typeof record.message === "string" && record.message.trim()) {
+      return record.message;
+    }
+    if (typeof record.error === "string" && record.error.trim()) {
+      return record.error;
+    }
+    if (typeof record.error_code === "string" && record.error_code.trim()) {
+      return record.error_code;
+    }
+  }
+  return "Request failed";
+}
+
 export async function apiFetch<T = unknown>(
   url: string,
   init?: RequestInit
@@ -24,14 +40,16 @@ export async function apiFetch<T = unknown>(
     }
   }
   if (!res.ok) {
-    const msg =
-      typeof data === "object" && data && "error" in data
-        ? String((data as Record<string, unknown>).error)
-        : `Request failed (${res.status})`;
+    const msg = extractErrorMessage(data) || `Request failed (${res.status})`;
     const err = new Error(msg) as Error & { status: number };
     err.status = res.status;
     throw err;
   }
+
+  if (typeof data === "object" && data !== null && "data" in (data as Record<string, unknown>)) {
+    return ((data as Record<string, unknown>).data as T) ?? (data as T);
+  }
+
   return data as T;
 }
 

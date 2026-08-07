@@ -76,9 +76,10 @@ export function GmailSellingSection({ user, settings }: GmailSellingSectionProps
   const refresh = React.useCallback(async () => {
     setLoading(true);
     try {
-      const { submissions: list } = await apiFetch<{ submissions: GmailSubmission[] }>(
+      const payload = await apiFetch<{ submissions?: GmailSubmission[] }>(
         "/api/gmail/my-gmail"
       );
+      const list = Array.isArray(payload?.submissions) ? payload.submissions : [];
       list.sort(
         (a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
